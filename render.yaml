@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: students-ngo-help-backend
+    env: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Supabase Dashboard -> Project Settings -> API -> Project URL
+      - key: SUPABASE_URL
+        sync: false
+      # Supabase Dashboard -> Project Settings -> API -> service_role secret key.
+      # This key bypasses Row Level Security — never expose it to the frontend.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Your Paystack SECRET key — set in the Render dashboard, never commit it.
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      # Long random string signing admin JWTs — set in the Render dashboard.
+      # Generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+      - key: JWT_SECRET
+        sync: false
+      # Must exactly match your deployed frontend URL (no trailing slash) — used for CORS.
+      - key: FRONTEND_URL
+        sync: false
