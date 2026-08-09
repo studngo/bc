@@ -16,10 +16,32 @@ CREATE TABLE IF NOT EXISTS admins (
 );
 
 -- ============================================================
--- REGISTRATIONS (one payment "batch" of students)
+-- SCHOOLS
+-- A school "account" identified by a name + a self-chosen access code.
+-- The code works like a Google Classroom join code — a shared, memorable
+-- code the school keeps to come back and see their own registered
+-- students. It is NOT a security boundary the way the admin login is:
+-- anyone with the code can view/add that school's own registrations, but
+-- individual student PII across the whole platform still only surfaces
+-- through the admin-authenticated endpoints.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS schools (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_name     VARCHAR(255) NOT NULL,
+    school_code     VARCHAR(50) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_schools_code_lower ON schools (lower(school_code));
+
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- REGISTRATIONS (one payment "batch" of students, belonging to a school)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS registrations (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    school_id               UUID REFERENCES schools(id),
     registration_reference  VARCHAR(50) UNIQUE NOT NULL,
     number_of_students      INTEGER NOT NULL DEFAULT 0,
     amount                  NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -34,6 +56,7 @@ CREATE TABLE IF NOT EXISTS registrations (
 
 CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(payment_status);
 CREATE INDEX IF NOT EXISTS idx_registrations_paystack_ref ON registrations(paystack_reference);
+CREATE INDEX IF NOT EXISTS idx_registrations_school ON registrations(school_id);
 
 -- ============================================================
 -- STUDENTS
@@ -90,6 +113,7 @@ ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE webhook_events ENABLE ROW LEVEL SECURITY;
+-- schools' RLS is enabled where the table is created, above.
 
 -- ============================================================
 -- RPC FUNCTIONS
@@ -185,6 +209,44 @@ BEGIN
       FROM (SELECT guardian_status, COUNT(*)::int cnt FROM students WHERE status = 'confirmed' GROUP BY guardian_status) gu
     )
   ) INTO result;
+
+  RETURN result;
+END;
+$$;
+
+-- ============================================================
+-- RPC: a school's full registration + student history, newest first.
+-- Powers the "your registered students" view that updates as the school
+-- adds more — the frontend just refetches this after every add/edit/delete.
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_school_registrations(p_school_id UUID)
+RETURNS JSON
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  SELECT COALESCE(json_agg(row_to_json(r) ORDER BY r.created_at DESC), '[]'::json) INTO result
+  FROM (
+    SELECT
+      reg.id,
+      reg.registration_reference,
+      reg.number_of_students,
+      reg.amount,
+      reg.payment_status,
+      reg.created_at,
+      reg.paid_at,
+      (
+        SELECT COALESCE(json_agg(row_to_json(s) ORDER BY s.created_at ASC), '[]'::json)
+        FROM (
+          SELECT id, school_section, grade, identification_type, identification_number,
+                 first_name, middle_name, surname, gender, household_type, guardian_status, status
+          FROM students WHERE registration_id = reg.id
+        ) s
+      ) AS students
+    FROM registrations reg
+    WHERE reg.school_id = p_school_id
+  ) r;
 
   RETURN result;
 END;

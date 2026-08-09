@@ -8,9 +8,20 @@ const { recalculateRegistrationAmount } = require('../services/registrationServi
 
 const router = express.Router();
 
-// POST /api/registrations — start a new (empty) registration batch
+// POST /api/registrations — start a new (empty) registration batch, tied to a school
 router.post('/', async (req, res, next) => {
   try {
+    const { schoolId } = req.body;
+    if (!schoolId) throw new ApiError(400, 'A school account is required to start a registration.');
+
+    const { data: school, error: schoolError } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('id', schoolId)
+      .maybeSingle();
+    throwIfSupabaseError(schoolError);
+    if (!school) throw new ApiError(404, 'School account not found. Please log in again.');
+
     let reference;
     let attempts = 0;
     // Extremely unlikely to collide, but guard anyway
@@ -29,12 +40,13 @@ router.post('/', async (req, res, next) => {
     const { data: registration, error } = await supabase
       .from('registrations')
       .insert({
+        school_id: schoolId,
         registration_reference: reference,
         number_of_students: 0,
         amount: 0,
         payment_status: 'pending'
       })
-      .select('id, registration_reference, payment_status, created_at')
+      .select('id, school_id, registration_reference, payment_status, created_at')
       .single();
     throwIfSupabaseError(error);
 
