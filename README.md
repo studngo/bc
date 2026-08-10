@@ -112,7 +112,7 @@ the backend only accepts requests from that one origin.
 ## 10. Testing payments
 
 1. Use Paystack's test M-Pesa numbers to simulate successful and failed charges.
-2. Confirm `students × KSh. 100` matches what Paystack charges, regardless of what a browser might try to send.
+2. Confirm `students × KSh. 50` matches what Paystack charges, regardless of what a browser might try to send.
 3. Re-send the same webhook event from the Paystack dashboard and confirm no duplicate students are created.
 
 ## 11. Switching to live mode
@@ -129,6 +129,6 @@ the backend only accepts requests from that one origin.
 - Row Level Security is enabled on every table with no policies defined, so only the service role (this
   backend) can read or write — a defense-in-depth measure in case the anon/public key is ever used against
   this project by mistake.
-- The backend independently recalculates `students × KSh. 100` (via the `recalculate_registration_amount` RPC)
+- The backend independently recalculates `students × KSh. 50` (via the `recalculate_registration_amount` RPC)
   before every payment initialization; the amount sent by the browser is never trusted.
 - Admin routes require a valid JWT (`middleware/auth.js`); passwords are hashed with bcrypt.

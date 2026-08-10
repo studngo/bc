@@ -2,7 +2,7 @@
 // Used by both the registrations and students controllers so the backend
 // never has to trust anything the client claims about a grade.
 
-const PRICE_PER_STUDENT = 100; // KSh, integer amount
+const PRICE_PER_STUDENT = 50; // KSh, integer amount
 
 const GRADES = {
   'Grade 1': { section: 'primary', idType: 'birth_certificate_entry_number' },
